@@ -30,7 +30,13 @@ contract StopLossExecutionTest is Test {
             ""
         );
         orderManager = OrderManagerV1(payable(address(proxy)));
-        orderManager.initialize(address(this), address(mockRouter), address(weth));
+        orderManager.initialize(
+            address(this),
+            address(mockRouter),
+            address(mockRouter),
+            address(mockRouter),
+            address(weth)
+        );
     }
 
     function createDigest(StopMarketOrder memory order) internal view returns (bytes32) {
@@ -138,7 +144,7 @@ contract StopLossExecutionTest is Test {
         mockRouter.expectSwap(address(orderManager), address(tokenIn), address(weth), fee, fee);
 
         bytes memory swapData = abi.encodePacked(uint256(1));
-        orderManager.executeOrder(order, swapData, swapData, v, r, s);
+        orderManager.executeOrder(order, swapData, swapData, v, r, s, 0);
         return order;
     }
 
@@ -176,7 +182,7 @@ contract StopLossExecutionTest is Test {
         );
 
         uint256 userBalanceBefore = tokenIn.balanceOf(user);
-        orderManager.executeStopLoss(order, swapData, swapData, v, r, s);
+        orderManager.executeStopLoss(order, swapData, swapData, v, r, s, 0);
         uint256 userBalanceAfter = tokenIn.balanceOf(user);
 
         uint256 actualAmountOut = userBalanceAfter - userBalanceBefore;
@@ -235,7 +241,7 @@ contract StopLossExecutionTest is Test {
         );
 
         uint256 userBalanceBefore = tokenIn.balanceOf(user);
-        orderManager.executeStopLoss(order, swapData, swapData, v, r, s);
+        orderManager.executeStopLoss(order, swapData, swapData, v, r, s, 0);
         uint256 userBalanceAfter = tokenIn.balanceOf(user);
 
         assertEq(
@@ -286,7 +292,7 @@ contract StopLossExecutionTest is Test {
 
         bytes memory swapData = abi.encodePacked(uint256(1));
         uint256 executorBalanceBefore = address(this).balance;
-        orderManager.executeStopLoss(order, swapData, swapData, v2, r2, s2);
+        orderManager.executeStopLoss(order, swapData, swapData, v2, r2, s2, 0);
 
         assertEq(
             address(this).balance - executorBalanceBefore,
@@ -343,7 +349,7 @@ contract StopLossExecutionTest is Test {
 
         bytes memory swapData = abi.encodePacked(uint256(1));
         uint256 executorBalanceBefore = address(this).balance;
-        orderManager.executeStopLoss(order, swapData, swapData, v2, r2, s2);
+        orderManager.executeStopLoss(order, swapData, swapData, v2, r2, s2, 0);
 
         assertEq(
             address(this).balance - executorBalanceBefore,
@@ -407,7 +413,7 @@ contract StopLossExecutionTest is Test {
         );
 
         uint256 executorBalanceBefore = address(this).balance;
-        orderManager.executeStopLoss(order, swapData, emptySwapData, v, r, s);
+        orderManager.executeStopLoss(order, swapData, emptySwapData, v, r, s, 0);
 
         assertEq(
             address(this).balance - executorBalanceBefore,
@@ -471,7 +477,7 @@ contract StopLossExecutionTest is Test {
                 stopLossOutMin
             )
         );
-        orderManager.executeStopLoss(order, swapData, emptySwapData, v, r, s);
+        orderManager.executeStopLoss(order, swapData, emptySwapData, v, r, s, 0);
     }
 
     function testExecuteStopLossOrder_openOrderIsNotExecuted_reverted() public {
@@ -493,7 +499,7 @@ contract StopLossExecutionTest is Test {
         vm.expectRevert(abi.encodeWithSelector(OpenOrderNotFound.selector, order.orderId));
 
         bytes memory swapData = abi.encodePacked(uint256(1));
-        orderManager.executeStopLoss(order, swapData, swapData, v, r, s);
+        orderManager.executeStopLoss(order, swapData, swapData, v, r, s, 0);
     }
 
     receive() external payable {}

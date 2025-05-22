@@ -13,7 +13,13 @@ contract DigestVerificationTest is Test {
         OrderManagerV1Testable implementation = new OrderManagerV1Testable();
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(implementation), address(this), "");
         orderManager = OrderManagerV1Testable(payable(address(proxy)));
-        orderManager.initialize(address(this), address(0x111), address(0x112));
+        orderManager.initialize(
+            address(this),
+            address(0x111),
+            address(0x111),
+            address(0x111),
+            address(0x112)
+        );
     }
 
     function testVerifySignature_success() public {

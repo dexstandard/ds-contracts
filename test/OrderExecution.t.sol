@@ -25,7 +25,13 @@ contract OrderExecutionTest is Test {
         OrderManagerV1 implementation = new OrderManagerV1();
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(implementation), address(this), "");
         orderManager = OrderManagerV1(payable(address(proxy)));
-        orderManager.initialize(address(this), address(mockRouter), address(weth));
+        orderManager.initialize(
+            address(this),
+            address(mockRouter),
+            address(mockRouter),
+            address(mockRouter),
+            address(weth)
+        );
     }
 
     function createDigest(StopMarketOrder memory order) internal view returns (bytes32) {
@@ -80,7 +86,7 @@ contract OrderExecutionTest is Test {
         // Act & Assert: Unauthorized executor should revert
         vm.prank(address(0x123)); // Simulate an unauthorized executor
         vm.expectRevert(UnauthorizedExecutor.selector);
-        orderManager.executeOrder(order, mockSwapData, mockSwapData, v, r, s);
+        orderManager.executeOrder(order, mockSwapData, mockSwapData, v, r, s, 0);
     }
 
     function testExecuteOrder_success() public {
@@ -116,7 +122,7 @@ contract OrderExecutionTest is Test {
         vm.expectEmit(true, true, true, true);
         emit OrderManagerV1.OpenOrderExecuted(address(this), user, orderId, amountOutMin, address(tokenOut), fee);
 
-        orderManager.executeOrder(order, swapData, swapData, v, r, s);
+        orderManager.executeOrder(order, swapData, swapData, v, r, s, 0);
 
         (uint256 amountOut,) = orderManager.getAmountOut(orderId);
         assertEq(tokenOut.balanceOf(user), amountOutMin, "amountOut mismatch");
@@ -168,7 +174,7 @@ contract OrderExecutionTest is Test {
             address(this), user, orderId, amountOutMin, address(tokenOut), feeAmountIn
         );
 
-        orderManager.executeOrder(order, swapData, swapData, v, r, s);
+        orderManager.executeOrder(order, swapData, swapData, v, r, s, 0);
 
         (uint256 amountOut, address tOut) = orderManager.getAmountOut(orderId);
         assertEq(tokenOut.balanceOf(user), amountOutMin, "amountOut mismatch");
@@ -209,7 +215,7 @@ contract OrderExecutionTest is Test {
         vm.expectEmit(true, true, true, true);
         emit OrderManagerV1.OpenOrderExecuted(address(this), user, orderId, amountOutMin, address(tokenOut), fee);
 
-        orderManager.executeOrder(order, swapData, swapData, v, r, s);
+        orderManager.executeOrder(order, swapData, swapData, v, r, s, 0);
 
         (uint256 amountOut,) = orderManager.getAmountOut(orderId);
         assertEq(tokenOut.balanceOf(user), amountOutMin, "amountOut mismatch");
@@ -262,7 +268,7 @@ contract OrderExecutionTest is Test {
         );
 
         // Execute the order
-        orderManager.executeOrder(order, swapData, swapData, v, r, s);
+        orderManager.executeOrder(order, swapData, swapData, v, r, s, 0);
 
         // Assertions
         (uint256 amountOut,) = orderManager.getAmountOut(orderId);
@@ -305,7 +311,7 @@ contract OrderExecutionTest is Test {
 
         uint256 executorBalanceBefore = address(this).balance;
         bytes memory swapData = abi.encodePacked(uint256(1));
-        orderManager.executeOrder(order, swapData, emptyFeeSwapData, v, r, s);
+        orderManager.executeOrder(order, swapData, emptyFeeSwapData, v, r, s, 0);
 
         (uint256 amountOut,) = orderManager.getAmountOut(orderId);
         assertEq(tokenOut.balanceOf(user), amountOutMin, "amountOut mismatch");
@@ -354,7 +360,7 @@ contract OrderExecutionTest is Test {
 
         uint256 executorBalanceBefore = address(this).balance;
         bytes memory swapData = abi.encodePacked(uint256(1));
-        orderManager.executeOrder(order, swapData, emptyFeeSwapData, v, r, s);
+        orderManager.executeOrder(order, swapData, emptyFeeSwapData, v, r, s, 0);
 
         (uint256 amountOut,) = orderManager.getAmountOut(orderId);
         assertEq(tokenOut.balanceOf(user), amountOutMin, "amountOut mismatch");
@@ -401,7 +407,7 @@ contract OrderExecutionTest is Test {
             abi.encodeWithSelector(AmountOutTooLow.selector, user, orderId, mismatchedAmountOut, amountOutMin)
         );
 
-        orderManager.executeOrder(order, swapData, swapData, v, r, s);
+        orderManager.executeOrder(order, swapData, swapData, v, r, s, 0);
     }
 
     function testFuzzExecuteSwapForUser_amountOutMismatch_reverted(
@@ -449,7 +455,7 @@ contract OrderExecutionTest is Test {
             abi.encodeWithSelector(AmountOutTooLow.selector, user, orderId, mismatchedAmountOut, amountOutMin)
         );
 
-        orderManager.executeOrder(order, swapData, swapData, v, r, s);
+        orderManager.executeOrder(order, swapData, swapData, v, r, s, 0);
     }
 
     function testExecuteSwapForUser_feeGreaterThanBalance_revert() public {
@@ -490,7 +496,7 @@ contract OrderExecutionTest is Test {
                 hex"fb8f41b20000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a900000000000000000000000000000000000000000000000002c68af0bb1400000000000000000000000000000000000000000000000000000429d069189e0000"
             )
         );
-        orderManager.executeOrder(order, swapData, swapData, v, r, s);
+        orderManager.executeOrder(order, swapData, swapData, v, r, s, 0);
     }
 
     receive() external payable {}

@@ -40,15 +40,23 @@ error UnauthorizedOwner();
 error OrderExpired();
 error InvalidAmountOut();
 error SwapFailed(address user, uint256 orderId, bytes result);
-error AmountOutTooLow(address user, uint256 orderId, uint256 actualAmountOut, uint256 amountOutMin);
-error FeeTransferFailed(address executor, uint256 orderId, uint256 amountNative);
+error AmountOutTooLow(
+    address user,
+    uint256 orderId,
+    uint256 actualAmountOut,
+    uint256 amountOutMin
+);
+error FeeTransferFailed(
+    address executor,
+    uint256 orderId,
+    uint256 amountNative
+);
 error OpenOrderNotFound(uint256 orderId);
-error InvalidDexIndex(uint8 index);
 
 /* --------------------------------------------------------------------
- *                             ORDER MANAGER V1
+ *                             ORDER MANAGER V0
  * -------------------------------------------------------------------- */
-contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
+contract OrderManagerV0 is ReentrancyGuard, Initializable, UUPSUpgradeable {
     using SafeERC20 for IERC20;
     using ECDSA for bytes32;
 
@@ -64,9 +72,7 @@ contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
     bytes32 public DOMAIN_SEPARATOR;
     address public WETH_ADDRESS;
     address public owner;
-    address public router0;
-    address public router1;
-    address public router2;
+    address public uniswapRouter;
 
     /* the address of relayer service that is allowed to execute orders and take execution fees */
     address public executor;
@@ -81,14 +87,18 @@ contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
     /* --------------------------------------------------------------------
      *                             CONSTANTS
      * -------------------------------------------------------------------- */
-    bytes32 public constant ORDER_TYPEHASH = keccak256(
-        "StopMarketOrder(address user,uint256 orderId,uint256 amountIn,address tokenIn,address tokenOut,uint256 ttl,uint256 amountOutMin,uint256 takeProfitOutMin,uint256 stopLossOutMin)"
-    );
+    bytes32 public constant ORDER_TYPEHASH =
+        keccak256(
+            "StopMarketOrder(address user,uint256 orderId,uint256 amountIn,address tokenIn,address tokenOut,uint256 ttl,uint256 amountOutMin,uint256 takeProfitOutMin,uint256 stopLossOutMin)"
+        );
 
     /* --------------------------------------------------------------------
      *                             EVENTS
      * -------------------------------------------------------------------- */
-    event ExecutorChanged(address indexed oldExecutor, address indexed newExecutor);
+    event ExecutorChanged(
+        address indexed oldExecutor,
+        address indexed newExecutor
+    );
     event OpenOrderExecuted(
         address indexed executor,
         address indexed user,
@@ -115,22 +125,29 @@ contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
         address tokenOut,
         uint256 gasRefundAndFees
     );
-    event UpgradeScheduled(address indexed newImplementation, uint256 scheduledTo);
+    event UpgradeScheduled(
+        address indexed newImplementation,
+        uint256 scheduledTo
+    );
 
     /* --------------------------------------------------------------------
      *                             INITIALIZER
      * -------------------------------------------------------------------- */
-    function initialize(address _executor, address _uniswapRouter, address _sushiRouter, address _pancakeRouter, address _wethAddress) public initializer {
+    function initialize(
+        address _executor,
+        address _uniswapRouter,
+        address _wethAddress
+    ) public initializer {
         owner = msg.sender; // Set the deployer as the initial owner
         executor = _executor;
-        router0 = _uniswapRouter;
-        router1 = _sushiRouter;
-        router2 = _pancakeRouter;
+        uniswapRouter = _uniswapRouter;
         WETH_ADDRESS = _wethAddress;
 
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
-                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
                 keccak256("OrderManagerV1"), // Contract name
                 keccak256("1"), // Version
                 block.chainid, // Chain ID
@@ -147,14 +164,21 @@ contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
      * @dev Schedule an upgrade. Only callable by the owner.
      * @param _upgradeImplementation The address of the new implementation contract.
      */
-    function scheduleUpgrade(address _upgradeImplementation) external onlyOwner {
+    function scheduleUpgrade(
+        address _upgradeImplementation
+    ) external onlyOwner {
         upgradeImplementation = _upgradeImplementation;
         upgradeScheduledTime = block.timestamp + 2 days;
         emit UpgradeScheduled(_upgradeImplementation, upgradeScheduledTime);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
-        require(block.timestamp >= upgradeScheduledTime, "Upgrade still locked");
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyOwner {
+        require(
+            block.timestamp >= upgradeScheduledTime,
+            "Upgrade still locked"
+        );
         require(upgradeImplementation == newImplementation, "Invalid upgrade");
     }
 
@@ -175,16 +199,27 @@ contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
         bytes calldata feeSwapData,
         uint8 v,
         bytes32 r,
-        bytes32 s,
-        uint8 dexIndex
+        bytes32 s
     ) external nonReentrant onlyExecutor {
         _verifySignature(order, v, r, s);
         _markPositionOpened(order.user, order.orderId);
         _validateOrder(order.ttl, order.amountOutMin);
-        _prepareForSwap(order, dexIndex);
-        uint256 actualAmountOut = _executeSwapForUser(order, swapData, dexIndex);
-        uint256 gasRefundAndFees = _takeExecutionFee(order.user, order.orderId, order.tokenIn, feeSwapData, dexIndex);
-        emit OpenOrderExecuted(executor, order.user, order.orderId, actualAmountOut, order.tokenOut, gasRefundAndFees);
+        _prepareForSwap(order);
+        uint256 actualAmountOut = _executeSwapForUser(order, swapData);
+        uint256 gasRefundAndFees = _takeExecutionFee(
+            order.user,
+            order.orderId,
+            order.tokenIn,
+            feeSwapData
+        );
+        emit OpenOrderExecuted(
+            executor,
+            order.user,
+            order.orderId,
+            actualAmountOut,
+            order.tokenOut,
+            gasRefundAndFees
+        );
     }
 
     /* --------------------------------------------------------------------
@@ -200,22 +235,40 @@ contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
         bytes calldata feeSwapData,
         uint8 v,
         bytes32 r,
-        bytes32 s,
-        uint8 dexIndex
+        bytes32 s
     ) external nonReentrant onlyExecutor {
         _verifySignature(order, v, r, s);
         _checkPositionOpened(order.user, order.orderId);
         _markPositionClosed(order.user, order.orderId);
         _validateOrder(order.ttl, order.takeProfitOutMin);
 
-        (uint256 openOrderAmountOut, address openOrderTokenOut) = getAmountOut(order.orderId);
-        _prepareForSwap(order.user, openOrderTokenOut, openOrderAmountOut, dexIndex);
+        (uint256 openOrderAmountOut, address openOrderTokenOut) = getAmountOut(
+            order.orderId
+        );
+        _prepareForSwap(order.user, openOrderTokenOut, openOrderAmountOut);
 
-        uint256 actualAmountOut =
-                        _executeClosePositionSwap(order.user, order.orderId, swapData, order.tokenIn, order.takeProfitOutMin, dexIndex);
-        uint256 gasRefundAndFees = _takeExecutionFee(order.user, order.orderId, order.tokenOut, feeSwapData, dexIndex);
+        uint256 actualAmountOut = _executeClosePositionSwap(
+            order.user,
+            order.orderId,
+            swapData,
+            order.tokenIn,
+            order.takeProfitOutMin
+        );
+        uint256 gasRefundAndFees = _takeExecutionFee(
+            order.user,
+            order.orderId,
+            order.tokenOut,
+            feeSwapData
+        );
 
-        emit TakeProfitExecuted(executor, order.user, order.orderId, actualAmountOut, order.tokenIn, gasRefundAndFees);
+        emit TakeProfitExecuted(
+            executor,
+            order.user,
+            order.orderId,
+            actualAmountOut,
+            order.tokenIn,
+            gasRefundAndFees
+        );
     }
 
     /* --------------------------------------------------------------------
@@ -227,21 +280,39 @@ contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
         bytes calldata feeSwapData,
         uint8 v,
         bytes32 r,
-        bytes32 s,
-        uint8 dexIndex
+        bytes32 s
     ) external nonReentrant onlyExecutor {
         _verifySignature(order, v, r, s);
         _checkPositionOpened(order.user, order.orderId);
         _markPositionClosed(order.user, order.orderId);
         _validateOrder(order.ttl, order.stopLossOutMin);
-        (uint256 openOrderAmountOut, address openOrderTokenOut) = getAmountOut(order.orderId);
-        _prepareForSwap(order.user, openOrderTokenOut, openOrderAmountOut, dexIndex);
+        (uint256 openOrderAmountOut, address openOrderTokenOut) = getAmountOut(
+            order.orderId
+        );
+        _prepareForSwap(order.user, openOrderTokenOut, openOrderAmountOut);
 
-        uint256 actualAmountOut =
-                        _executeClosePositionSwap(order.user, order.orderId, swapData, order.tokenIn, order.stopLossOutMin, dexIndex);
-        uint256 gasRefundAndFees = _takeExecutionFee(order.user, order.orderId, order.tokenOut, feeSwapData, dexIndex);
+        uint256 actualAmountOut = _executeClosePositionSwap(
+            order.user,
+            order.orderId,
+            swapData,
+            order.tokenIn,
+            order.stopLossOutMin
+        );
+        uint256 gasRefundAndFees = _takeExecutionFee(
+            order.user,
+            order.orderId,
+            order.tokenOut,
+            feeSwapData
+        );
 
-        emit StopLossExecuted(executor, order.user, order.orderId, actualAmountOut, order.tokenIn, gasRefundAndFees);
+        emit StopLossExecuted(
+            executor,
+            order.user,
+            order.orderId,
+            actualAmountOut,
+            order.tokenIn,
+            gasRefundAndFees
+        );
     }
 
     /* --------------------------------------------------------------------
@@ -256,7 +327,12 @@ contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
      * @param r The r parameter of the signature.
      * @param s The s parameter of the signature.
      */
-    function _verifySignature(StopMarketOrder calldata order, uint8 v, bytes32 r, bytes32 s) internal view {
+    function _verifySignature(
+        StopMarketOrder calldata order,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) internal view {
         bytes32 digest = keccak256(
             abi.encodePacked(
                 "\x19\x01", // EIP-191 prefix
@@ -302,26 +378,38 @@ contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
         if (amountOutMin == 0) revert InvalidAmountOut();
     }
 
-    function _prepareForSwap(address user, address tokenIn, uint256 amountIn, uint8 dexIndex) internal {
+    function _prepareForSwap(
+        address user,
+        address tokenIn,
+        uint256 amountIn
+    ) internal {
         IERC20(tokenIn).safeTransferFrom(user, address(this), amountIn);
-        address router = _getRouter(dexIndex);
-        SafeERC20.forceApprove(IERC20(tokenIn), router, amountIn);
+        SafeERC20.forceApprove(IERC20(tokenIn), uniswapRouter, amountIn);
     }
 
-    function _prepareForSwap(StopMarketOrder calldata order, uint8 dexIndex) internal {
-        IERC20(order.tokenIn).safeTransferFrom(order.user, address(this), order.amountIn);
-        address router = _getRouter(dexIndex);
-        SafeERC20.forceApprove(IERC20(order.tokenIn), router, order.amountIn);
+    function _prepareForSwap(StopMarketOrder calldata order) internal {
+        IERC20(order.tokenIn).safeTransferFrom(
+            order.user,
+            address(this),
+            order.amountIn
+        );
+        SafeERC20.forceApprove(
+            IERC20(order.tokenIn),
+            uniswapRouter,
+            order.amountIn
+        );
     }
 
-    function _takeExecutionFee(address user, uint256 orderId, address tokenIn, bytes calldata feeSwapData, uint8 dexIndex)
-        internal
-        returns (uint256)
-    {
+    function _takeExecutionFee(
+        address user,
+        uint256 orderId,
+        address tokenIn,
+        bytes calldata feeSwapData
+    ) internal returns (uint256) {
         if (feeSwapData.length == 0) return 0;
 
         if (tokenIn != WETH_ADDRESS) {
-            _executeSwap(user, orderId, feeSwapData, dexIndex);
+            _executeSwap(user, orderId, feeSwapData);
         }
 
         uint256 wethBalance = IERC20(WETH_ADDRESS).balanceOf(address(this));
@@ -331,7 +419,7 @@ contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
         uint256 contractNativeBalance = address(this).balance;
         if (contractNativeBalance == 0) return 0;
 
-        (bool sent,) = executor.call{value: contractNativeBalance}("");
+        (bool sent, ) = executor.call{value: contractNativeBalance}("");
         if (!sent) {
             revert FeeTransferFailed(executor, orderId, contractNativeBalance);
         }
@@ -340,11 +428,10 @@ contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
 
     function _executeSwapForUser(
         StopMarketOrder calldata order,
-        bytes calldata swapData,
-        uint8 dexIndex
+        bytes calldata swapData
     ) internal returns (uint256) {
         uint256 balanceBefore = IERC20(order.tokenOut).balanceOf(order.user);
-        _executeSwap(order.user, order.orderId, swapData, dexIndex);
+        _executeSwap(order.user, order.orderId, swapData);
         uint256 actualAmountOut = _validateUserBalance(order, balanceBefore);
         amountsOut[order.orderId] = AmountOut(actualAmountOut, order.tokenOut);
         return actualAmountOut;
@@ -355,26 +442,41 @@ contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
         uint256 orderId,
         bytes calldata swapData,
         address tokenOut,
-        uint256 minOut,
-        uint8 dexIndex
+        uint256 minOut
     ) internal returns (uint256) {
         uint256 balanceBefore = IERC20(tokenOut).balanceOf(user);
-        _executeSwap(user, orderId, swapData, dexIndex);
-        return _validateUserBalance(user, orderId, balanceBefore, tokenOut, minOut);
+        _executeSwap(user, orderId, swapData);
+        return
+            _validateUserBalance(
+                user,
+                orderId,
+                balanceBefore,
+                tokenOut,
+                minOut
+            );
     }
 
-    function _executeSwap(address user, uint256 orderId, bytes calldata swapData, uint8 dexIndex) internal {
-        address router = _getRouter(dexIndex);
-        (bool success, bytes memory result) = router.call(swapData);
+    function _executeSwap(
+        address user,
+        uint256 orderId,
+        bytes calldata swapData
+    ) internal {
+        (bool success, bytes memory result) = uniswapRouter.call(swapData);
         if (!success) revert SwapFailed(user, orderId, result);
     }
 
-    function _validateUserBalance(StopMarketOrder calldata order, uint256 balanceBefore)
-        internal
-        view
-        returns (uint256)
-    {
-        return _validateUserBalance(order.user, order.orderId, balanceBefore, order.tokenOut, order.amountOutMin);
+    function _validateUserBalance(
+        StopMarketOrder calldata order,
+        uint256 balanceBefore
+    ) internal view returns (uint256) {
+        return
+            _validateUserBalance(
+                order.user,
+                order.orderId,
+                balanceBefore,
+                order.tokenOut,
+                order.amountOutMin
+            );
     }
 
     function _validateUserBalance(
@@ -387,16 +489,14 @@ contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
         uint256 balanceAfter = IERC20(tokenOut).balanceOf(user);
         uint256 actualAmountOut = balanceAfter - balanceBefore;
         if (actualAmountOut < amountOutMin) {
-            revert AmountOutTooLow(user, orderId, actualAmountOut, amountOutMin);
+            revert AmountOutTooLow(
+                user,
+                orderId,
+                actualAmountOut,
+                amountOutMin
+            );
         }
         return actualAmountOut;
-    }
-
-    function _getRouter(uint8 dexIndex) internal view returns (address) {
-        if (dexIndex == 0) return router0;
-        if (dexIndex == 1) return router1;
-        if (dexIndex == 2) return router2;
-        revert InvalidDexIndex(dexIndex);
     }
 
     /* --------------------------------------------------------------------
@@ -427,7 +527,9 @@ contract OrderManagerV1 is ReentrancyGuard, Initializable, UUPSUpgradeable {
         _;
     }
 
-    function getAmountOut(uint256 orderId) public view returns (uint256, address) {
+    function getAmountOut(
+        uint256 orderId
+    ) public view returns (uint256, address) {
         AmountOut storage data = amountsOut[orderId];
         if (data.amountOut == 0) revert OpenOrderNotFound(orderId);
         return (data.amountOut, data.tokenOut);

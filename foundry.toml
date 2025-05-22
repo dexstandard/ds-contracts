@@ -6,4 +6,10 @@ via_ir = true
 optimizer = true
 optimizer_runs = 200
 solc_version = "0.8.28"
+remappings = [
+  "@aaveV3/=lib/protocol-v3/contracts/",
+  "@uniswap/v3-core/=lib/v3-core/",
+  "@pancake/=lib/pancake-v3-contracts/",
+  "@uniswap/smart-router-contracts/=lib/swap-router-contracts/contracts/",
+]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

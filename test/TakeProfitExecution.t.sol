@@ -25,7 +25,13 @@ contract TakeProfitExecutionTest is Test {
         OrderManagerV1 implementation = new OrderManagerV1();
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(address(implementation), address(this), "");
         orderManager = OrderManagerV1(payable(address(proxy)));
-        orderManager.initialize(address(this), address(mockRouter), address(weth));
+        orderManager.initialize(
+            address(this),
+            address(mockRouter),
+            address(mockRouter),
+            address(mockRouter),
+            address(weth)
+        );
     }
 
     function createDigest(StopMarketOrder memory order) internal view returns (bytes32) {
@@ -126,7 +132,7 @@ contract TakeProfitExecutionTest is Test {
         mockRouter.expectSwap(address(orderManager), address(tokenIn), address(weth), fee, fee);
 
         bytes memory swapData = abi.encodePacked(uint256(1));
-        orderManager.executeOrder(order, swapData, swapData, v, r, s);
+        orderManager.executeOrder(order, swapData, swapData, v, r, s, 0);
         return order;
     }
 
@@ -158,7 +164,7 @@ contract TakeProfitExecutionTest is Test {
         );
 
         uint256 userBalanceBefore = tokenIn.balanceOf(user);
-        orderManager.executeTakeProfit(order, swapData, swapData, v, r, s);
+        orderManager.executeTakeProfit(order, swapData, swapData, v, r, s, 0);
         uint256 actualAmountOut = tokenIn.balanceOf(user) - userBalanceBefore;
 
         assertEq(tokenIn.balanceOf(user),order.takeProfitOutMin, "amountOut mismatch");
@@ -213,7 +219,7 @@ contract TakeProfitExecutionTest is Test {
         );
 
         uint256 userBalanceBefore = tokenIn.balanceOf(user);
-        orderManager.executeTakeProfit(order, swapData, swapData, v, r, s);
+        orderManager.executeTakeProfit(order, swapData, swapData, v, r, s, 0);
         uint256 actualAmountOut = tokenIn.balanceOf(user) - userBalanceBefore;
 
         assertEq(tokenIn.balanceOf(user),order.takeProfitOutMin, "amountOut mismatch");
@@ -265,7 +271,7 @@ contract TakeProfitExecutionTest is Test {
 
         bytes memory swapData = abi.encodePacked(uint256(1));
         uint256 executorBalanceBefore = address(this).balance;
-        orderManager.executeTakeProfit(order, swapData, swapData, v2, r2, s2);
+        orderManager.executeTakeProfit(order, swapData, swapData, v2, r2, s2, 0);
         assertEq(address(this).balance - executorBalanceBefore, fee, "fee mismatch");
     }
 
@@ -320,7 +326,7 @@ contract TakeProfitExecutionTest is Test {
 
         bytes memory swapData = abi.encodePacked(uint256(1));
         uint256 executorBalanceBefore = address(this).balance;
-        orderManager.executeTakeProfit(order, swapData, swapData, v2, r2, s2);
+        orderManager.executeTakeProfit(order, swapData, swapData, v2, r2, s2, 0);
         assertEq(address(this).balance - executorBalanceBefore, fee, "fee mismatch");
     }
 
@@ -377,7 +383,7 @@ contract TakeProfitExecutionTest is Test {
             address(tokenIn),
             0
         );
-        orderManager.executeTakeProfit(order, swapData, emptySwapData, v2, r2, s2);
+        orderManager.executeTakeProfit(order, swapData, emptySwapData, v2, r2, s2, 0);
         assertEq(address(this).balance - executorBalanceBefore, 0, "fee mismatch");
     }
 
@@ -430,7 +436,7 @@ contract TakeProfitExecutionTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(AmountOutTooLow.selector, user, orderId, mismatchedAmountOut, takeProfitOutMin)
         );
-        orderManager.executeTakeProfit(order, swapData, emptySwapData, v2, r2, s2);
+        orderManager.executeTakeProfit(order, swapData, emptySwapData, v2, r2, s2, 0);
     }
 
     function testExecuteTakeProfitOrder_openOrderIsNotExecuted_reverted() public {
@@ -453,7 +459,7 @@ contract TakeProfitExecutionTest is Test {
         vm.expectRevert(abi.encodeWithSelector(OpenOrderNotFound.selector, 1));
 
         bytes memory swapData = abi.encodePacked(uint256(1));
-        orderManager.executeTakeProfit(order, swapData, swapData, v2, r2, s2);
+        orderManager.executeTakeProfit(order, swapData, swapData, v2, r2, s2, 0);
     }
 
     receive() external payable {}

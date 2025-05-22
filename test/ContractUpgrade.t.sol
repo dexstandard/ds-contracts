@@ -31,7 +31,13 @@ contract ContractUpgradeTest is Test {
 
         // Initialize orderManager via the proxy
         orderManager = OrderManagerV1(payable(address(proxy)));
-        orderManager.initialize(address(this), address(mockRouter), address(weth));
+        orderManager.initialize(
+            address(this),
+            address(mockRouter),
+            address(mockRouter),
+            address(mockRouter),
+            address(weth)
+        );
     }
 
     function testUpgrade_success() public {
