@@ -85,6 +85,18 @@ DCAOrderManagerV1 breaks your investment into scheduled chunks for dollar-cost a
 
 ## Local Build & Testing
 
+### Install dependencies
+
+```shell
+forge install OpenZeppelin/openzeppelin-contracts --no-commit
+forge install OpenZeppelin/openzeppelin-contracts-upgradeable --no-commit
+forge install Uniswap/v3-core --no-commit
+forge install Uniswap/v3-periphery --no-commit
+forge install Uniswap/swap-router-contracts --no-commit
+forge install https://github.com/pancakeswap/pancake-v3-contracts --no-commit
+forge install https://github.com/aave/protocol-v3  --no-commit
+```
+
 ### Build
 
 ```shell
